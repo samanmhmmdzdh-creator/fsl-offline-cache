@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -12,10 +12,6 @@ jobs:
     timeout-minutes: 90
 
     steps:
-
-      # ============================================================
-      # 1. Download official FSL environment
-      # ============================================================
 
       - name: Download FSL environment
         run: |
@@ -28,13 +24,8 @@ jobs:
             -o fsl-6.0.7.23_linux-64.yml
 
           echo ""
-          echo "Environment file:"
           ls -lh fsl-6.0.7.23_linux-64.yml
 
-
-      # ============================================================
-      # 2. Install micromamba
-      # ============================================================
 
       - name: Install micromamba
         run: |
@@ -49,13 +40,8 @@ jobs:
           chmod +x bin/micromamba
 
           echo ""
-          echo "Micromamba version:"
           ./bin/micromamba --version
 
-
-      # ============================================================
-      # 3. Create FSL environment
-      # ============================================================
 
       - name: Create FSL environment
         env:
@@ -74,10 +60,6 @@ jobs:
           echo "FSL installation completed."
 
 
-      # ============================================================
-      # 4. Verify original FSL installation
-      # ============================================================
-
       - name: Verify FSL installation
         run: |
           echo "======================================"
@@ -93,13 +75,9 @@ jobs:
           echo "fslstats: OK"
 
           echo ""
-          echo "FSL installation directory:"
+          echo "FSL size:"
           du -sh "${GITHUB_WORKSPACE}/fsl"
 
-
-      # ============================================================
-      # 5. Create compressed FSL archive
-      # ============================================================
 
       - name: Create compressed archive
         run: |
@@ -122,10 +100,6 @@ jobs:
           du -h fsl-6.0.7.23-linux-64.tar.zst
 
 
-      # ============================================================
-      # 6. Calculate SHA256 of complete archive
-      # ============================================================
-
       - name: Calculate archive checksum
         run: |
           echo "======================================"
@@ -137,13 +111,8 @@ jobs:
             | tee fsl-6.0.7.23-linux-64.tar.zst.sha256
 
           echo ""
-          echo "Complete archive checksum:"
           cat fsl-6.0.7.23-linux-64.tar.zst.sha256
 
-
-      # ============================================================
-      # 7. Test extraction of archive
-      # ============================================================
 
       - name: Test extracted archive
         run: |
@@ -187,10 +156,6 @@ jobs:
           echo "======================================"
 
 
-      # ============================================================
-      # 8. Split archive into downloadable parts
-      # ============================================================
-
       - name: Split archive into parts
         run: |
           echo "======================================"
@@ -210,19 +175,11 @@ jobs:
           echo "Created parts:"
           ls -lh fsl-parts/
 
-          echo ""
-          echo "Number of parts:"
-          find fsl-parts -type f | wc -l
-
-
-      # ============================================================
-      # 9. Calculate SHA256 for every part
-      # ============================================================
 
       - name: Calculate part checksums
         run: |
           echo "======================================"
-          echo "Calculating SHA256 for archive parts"
+          echo "Calculating SHA256 for parts"
           echo "======================================"
 
           cd fsl-parts
@@ -232,13 +189,8 @@ jobs:
             | tee SHA256SUMS.txt
 
           echo ""
-          echo "Part checksums:"
           cat SHA256SUMS.txt
 
-
-      # ============================================================
-      # 10. Verify parts can reconstruct the original archive
-      # ============================================================
 
       - name: Verify archive reconstruction
         run: |
@@ -258,16 +210,14 @@ jobs:
             reconstructed-fsl-6.0.7.23-linux-64.tar.zst
 
           echo ""
-          echo "Reconstructed archive checksum:"
-
-          sha256sum \
-            reconstructed-fsl-6.0.7.23-linux-64.tar.zst
-
-          echo ""
-          echo "Original archive checksum:"
-
+          echo "Original SHA256:"
           sha256sum \
             fsl-6.0.7.23-linux-64.tar.zst
+
+          echo ""
+          echo "Reconstructed SHA256:"
+          sha256sum \
+            reconstructed-fsl-6.0.7.23-linux-64.tar.zst
 
           echo ""
           echo "======================================"
@@ -275,33 +225,61 @@ jobs:
           echo "======================================"
 
 
-      # ============================================================
-      # 11. Show final files
-      # ============================================================
-
-      - name: Show final files
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           echo "======================================"
-          echo "FINAL PACKAGE INFORMATION"
+          echo "Creating GitHub Release"
           echo "======================================"
 
-          echo ""
-          echo "Complete archive:"
-          ls -lh fsl-6.0.7.23-linux-64.tar.zst
+          gh release create \
+            "fsl-6.0.7.23" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "FSL 6.0.7.23 Linux-64 Offline Package" \
+            --notes "FSL 6.0.7.23 Linux-64 environment packaged for offline installation."
 
           echo ""
-          echo "Archive SHA256:"
-          cat fsl-6.0.7.23-linux-64.tar.zst.sha256
+          echo "Release created."
+
+
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "======================================"
+          echo "Uploading release assets"
+          echo "======================================"
+
+          gh release upload \
+            "fsl-6.0.7.23" \
+            fsl-parts/fsl-6.0.7.23-linux-64.part-00 \
+            fsl-parts/fsl-6.0.7.23-linux-64.part-01 \
+            fsl-parts/fsl-6.0.7.23-linux-64.part-02 \
+            fsl-parts/fsl-6.0.7.23-linux-64.part-03 \
+            fsl-parts/SHA256SUMS.txt \
+            fsl-6.0.7.23-linux-64.tar.zst.sha256 \
+            --repo "${GITHUB_REPOSITORY}"
 
           echo ""
-          echo "Downloadable parts:"
-          ls -lh fsl-parts/
+          echo "All release assets uploaded successfully."
 
-          echo ""
-          echo "Part SHA256:"
-          cat fsl-parts/SHA256SUMS.txt
+
+      - name: Show release information
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "======================================"
+          echo "FSL RELEASE READY"
+          echo "======================================"
+
+          gh release view \
+            "fsl-6.0.7.23" \
+            --repo "${GITHUB_REPOSITORY}"
 
           echo ""
           echo "======================================"
-          echo "FSL PACKAGE READY"
+          echo "DOWNLOAD PAGE"
           echo "======================================"
+
+          echo "https://github.com/${GITHUB_REPOSITORY}/releases/tag/fsl-6.0.7.23"
