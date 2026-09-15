@@ -1,9 +1,72 @@
 name: Test FSL Offline
 
 on:
-workflow_dispatch:
+  workflow_dispatch:
 
 jobs:
-build:
-runs-on: ubuntu-22.04
-timeout-minutes: 40
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 40
+
+    steps:
+
+      - name: Download FSL environment
+        run: |
+          curl -fL \
+            "https://fsl.fmrib.ox.ac.uk/fsldownloads/fslconda/releases/fsl-6.0.7.23_linux-64.yml" \
+            -o fsl-6.0.7.23_linux-64.yml
+
+      - name: Install micromamba
+        run: |
+          curl -Ls \
+            "https://micro.mamba.pm/api/micromamba/linux-64/latest" \
+            | tar -xvj bin/micromamba
+
+          chmod +x bin/micromamba
+
+          ./bin/micromamba --version
+
+      - name: Create FSL online
+        env:
+          MAMBA_ROOT_PREFIX: ${{ github.workspace }}/mamba-root
+        run: |
+          ./bin/micromamba create \
+            --yes \
+            --prefix "${GITHUB_WORKSPACE}/fsl-staging" \
+            --file fsl-6.0.7.23_linux-64.yml
+
+      - name: Test offline installation
+        env:
+          MAMBA_ROOT_PREFIX: ${{ github.workspace }}/mamba-root
+        run: |
+          echo "Testing offline recreation..."
+
+          ./bin/micromamba create \
+            --offline \
+            --yes \
+            --prefix "${GITHUB_WORKSPACE}/fsl-offline-test" \
+            --file fsl-6.0.7.23_linux-64.yml
+
+      - name: Verify offline FSL
+        run: |
+          echo "Testing fslmaths..."
+          "${GITHUB_WORKSPACE}/fsl-offline-test/bin/fslmaths" --version
+
+          echo "Testing flirt..."
+          "${GITHUB_WORKSPACE}/fsl-offline-test/bin/flirt" -version
+
+      - name: Show sizes
+        env:
+          MAMBA_ROOT_PREFIX: ${{ github.workspace }}/mamba-root
+        run: |
+          echo "=== FSL staging ==="
+          du -sh "${GITHUB_WORKSPACE}/fsl-staging"
+
+          echo "=== Offline FSL ==="
+          du -sh "${GITHUB_WORKSPACE}/fsl-offline-test"
+
+          echo "=== Mamba cache ==="
+          du -sh "$MAMBA_ROOT_PREFIX"
+
+          echo "=== Disk ==="
+          df -h
