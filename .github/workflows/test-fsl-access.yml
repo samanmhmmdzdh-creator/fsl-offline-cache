@@ -18,7 +18,9 @@ jobs:
             "https://fsl.fmrib.ox.ac.uk/fsldownloads/fslconda/releases/fsl-6.0.7.23_linux-64.yml" \
             -o fsl-6.0.7.23_linux-64.yml
 
+          echo "Downloaded environment file:"
           ls -lh fsl-6.0.7.23_linux-64.yml
+
 
       - name: Install micromamba
         run: |
@@ -30,24 +32,32 @@ jobs:
 
           chmod +x bin/micromamba
 
+          echo "Micromamba version:"
           ./bin/micromamba --version
+
 
       - name: Create FSL environment
         env:
           MAMBA_ROOT_PREFIX: ${{ github.workspace }}/mamba-root
         run: |
-          echo "Creating FSL 6.0.7.23..."
+          echo "======================================"
+          echo "Creating FSL 6.0.7.23"
+          echo "======================================"
 
           ./bin/micromamba create \
             --yes \
             --prefix "${GITHUB_WORKSPACE}/fsl" \
             --file fsl-6.0.7.23_linux-64.yml
 
+          echo ""
           echo "FSL installation completed."
 
-      - name: Verify FSL
+
+      - name: Verify FSL installation
         run: |
-          echo "Checking FSL installation..."
+          echo "======================================"
+          echo "Verifying FSL installation"
+          echo "======================================"
 
           test -x "${GITHUB_WORKSPACE}/fsl/bin/fslmaths"
           test -x "${GITHUB_WORKSPACE}/fsl/bin/flirt"
@@ -58,9 +68,11 @@ jobs:
           echo "fslstats: OK"
 
           if [ -f "${GITHUB_WORKSPACE}/fsl/etc/fslversion" ]; then
+            echo ""
             echo "FSL version:"
             cat "${GITHUB_WORKSPACE}/fsl/etc/fslversion"
           fi
+
 
       - name: Create compressed archive
         run: |
@@ -78,9 +90,12 @@ jobs:
           echo "Archive created:"
           ls -lh fsl-6.0.7.23-linux-64.tar.zst
 
+
       - name: Calculate checksum
         run: |
-          echo "Calculating SHA256..."
+          echo "======================================"
+          echo "Calculating SHA256"
+          echo "======================================"
 
           sha256sum fsl-6.0.7.23-linux-64.tar.zst \
             | tee fsl-6.0.7.23-linux-64.tar.zst.sha256
@@ -89,14 +104,71 @@ jobs:
           echo "Archive size:"
           du -h fsl-6.0.7.23-linux-64.tar.zst
 
+
+      - name: Test extracted archive
+        run: |
+          echo "======================================"
+          echo "Testing archive extraction"
+          echo "======================================"
+
+          mkdir -p relocated-test
+
+          tar \
+            --zstd \
+            -xf fsl-6.0.7.23-linux-64.tar.zst \
+            -C relocated-test
+
+          echo ""
+          echo "Checking extracted FSL..."
+
+          test -x relocated-test/fsl/bin/fslmaths
+          test -x relocated-test/fsl/bin/flirt
+          test -x relocated-test/fsl/bin/fslstats
+
+          echo "fslmaths: OK"
+          echo "flirt: OK"
+          echo "fslstats: OK"
+
+          echo ""
+          echo "FSL version from extracted archive:"
+          cat relocated-test/fsl/etc/fslversion
+
+          echo ""
+          echo "Testing fslmaths:"
+          relocated-test/fsl/bin/fslmaths -h | head -20
+
+          echo ""
+          echo "Testing flirt:"
+          relocated-test/fsl/bin/flirt -version
+
+          echo ""
+          echo "Testing fslstats:"
+          relocated-test/fsl/bin/fslstats -h | head -10
+
+          echo ""
+          echo "======================================"
+          echo "RELOCATED ARCHIVE TEST PASSED"
+          echo "======================================"
+
+
       - name: Show disk usage
         run: |
           echo "======================================"
           echo "Disk usage"
           echo "======================================"
 
+          echo ""
+          echo "FSL environment:"
           du -sh "${GITHUB_WORKSPACE}/fsl"
+
+          echo ""
+          echo "Compressed archive:"
           du -sh fsl-6.0.7.23-linux-64.tar.zst
 
           echo ""
+          echo "Extracted test copy:"
+          du -sh relocated-test/fsl
+
+          echo ""
+          echo "Filesystem:"
           df -h
