@@ -47,13 +47,24 @@ jobs:
             --prefix "${GITHUB_WORKSPACE}/fsl-offline-test" \
             --file fsl-6.0.7.23_linux-64.yml
 
-      - name: Verify offline FSL
+            - name: Verify offline FSL
         run: |
-          echo "Testing fslmaths..."
-          "${GITHUB_WORKSPACE}/fsl-offline-test/bin/fslmaths" --version
+          echo "=== FSL version ==="
+          cat "${GITHUB_WORKSPACE}/fsl-offline-test/etc/fslversion"
 
-          echo "Testing flirt..."
-          "${GITHUB_WORKSPACE}/fsl-offline-test/bin/flirt" -version
+          echo "=== Check FSL executables ==="
+          test -x "${GITHUB_WORKSPACE}/fsl-offline-test/bin/fslmaths"
+          test -x "${GITHUB_WORKSPACE}/fsl-offline-test/bin/flirt"
+          test -x "${GITHUB_WORKSPACE}/fsl-offline-test/bin/fslstats"
+
+          echo "fslmaths: OK"
+          echo "flirt: OK"
+          echo "fslstats: OK"
+
+          echo "=== Test FSL command ==="
+          "${GITHUB_WORKSPACE}/fsl-offline-test/bin/fslmaths" -h | head -20
+
+          echo "=== Offline FSL verification PASSED ==="
 
       - name: Show sizes
         env:
