@@ -12,34 +12,47 @@ jobs:
 
       - name: Download FSL environment
         run: |
+          echo "Downloading FSL 6.0.7.23 environment..."
           curl -fL \
             "https://fsl.fmrib.ox.ac.uk/fsldownloads/fslconda/releases/fsl-6.0.7.23_linux-64.yml" \
             -o fsl-6.0.7.23_linux-64.yml
 
+          echo "Downloaded environment file:"
+          ls -lh fsl-6.0.7.23_linux-64.yml
+
       - name: Install micromamba
         run: |
+          echo "Installing micromamba..."
+
           curl -Ls \
             "https://micro.mamba.pm/api/micromamba/linux-64/latest" \
             | tar -xvj bin/micromamba
 
           chmod +x bin/micromamba
 
+          echo "Micromamba version:"
           ./bin/micromamba --version
 
       - name: Create FSL online
         env:
           MAMBA_ROOT_PREFIX: ${{ github.workspace }}/mamba-root
         run: |
+          echo "Creating FSL 6.0.7.23 environment..."
+
           ./bin/micromamba create \
             --yes \
             --prefix "${GITHUB_WORKSPACE}/fsl-staging" \
             --file fsl-6.0.7.23_linux-64.yml
 
+          echo "Online FSL installation completed."
+
       - name: Test offline installation
         env:
           MAMBA_ROOT_PREFIX: ${{ github.workspace }}/mamba-root
         run: |
-          echo "Testing offline recreation..."
+          echo "======================================"
+          echo "Testing offline recreation of FSL..."
+          echo "======================================"
 
           ./bin/micromamba create \
             --offline \
@@ -47,12 +60,27 @@ jobs:
             --prefix "${GITHUB_WORKSPACE}/fsl-offline-test" \
             --file fsl-6.0.7.23_linux-64.yml
 
-            - name: Verify offline FSL
-        run: |
-          echo "=== FSL version ==="
-          cat "${GITHUB_WORKSPACE}/fsl-offline-test/etc/fslversion"
+          echo "======================================"
+          echo "Offline installation completed."
+          echo "======================================"
 
-          echo "=== Check FSL executables ==="
+      - name: Verify offline FSL
+        run: |
+          echo "======================================"
+          echo "Checking FSL version..."
+          echo "======================================"
+
+          if [ -f "${GITHUB_WORKSPACE}/fsl-offline-test/etc/fslversion" ]; then
+            cat "${GITHUB_WORKSPACE}/fsl-offline-test/etc/fslversion"
+          else
+            echo "fslversion file not found"
+          fi
+
+          echo ""
+          echo "======================================"
+          echo "Checking FSL executables..."
+          echo "======================================"
+
           test -x "${GITHUB_WORKSPACE}/fsl-offline-test/bin/fslmaths"
           test -x "${GITHUB_WORKSPACE}/fsl-offline-test/bin/flirt"
           test -x "${GITHUB_WORKSPACE}/fsl-offline-test/bin/fslstats"
@@ -61,23 +89,41 @@ jobs:
           echo "flirt: OK"
           echo "fslstats: OK"
 
-          echo "=== Test FSL command ==="
+          echo ""
+          echo "======================================"
+          echo "Testing fslmaths help..."
+          echo "======================================"
+
           "${GITHUB_WORKSPACE}/fsl-offline-test/bin/fslmaths" -h | head -20
 
-          echo "=== Offline FSL verification PASSED ==="
+          echo ""
+          echo "======================================"
+          echo "OFFLINE FSL VERIFICATION PASSED"
+          echo "======================================"
 
       - name: Show sizes
         env:
           MAMBA_ROOT_PREFIX: ${{ github.workspace }}/mamba-root
         run: |
-          echo "=== FSL staging ==="
+          echo "======================================"
+          echo "FSL staging size"
+          echo "======================================"
           du -sh "${GITHUB_WORKSPACE}/fsl-staging"
 
-          echo "=== Offline FSL ==="
+          echo ""
+          echo "======================================"
+          echo "Offline FSL size"
+          echo "======================================"
           du -sh "${GITHUB_WORKSPACE}/fsl-offline-test"
 
-          echo "=== Mamba cache ==="
+          echo ""
+          echo "======================================"
+          echo "Mamba cache size"
+          echo "======================================"
           du -sh "$MAMBA_ROOT_PREFIX"
 
-          echo "=== Disk ==="
+          echo ""
+          echo "======================================"
+          echo "Disk space"
+          echo "======================================"
           df -h
