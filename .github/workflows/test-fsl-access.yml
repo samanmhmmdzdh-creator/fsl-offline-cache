@@ -18,7 +18,6 @@ jobs:
             "https://fsl.fmrib.ox.ac.uk/fsldownloads/fslconda/releases/fsl-6.0.7.23_linux-64.yml" \
             -o fsl-6.0.7.23_linux-64.yml
 
-          echo "Downloaded environment file:"
           ls -lh fsl-6.0.7.23_linux-64.yml
 
 
@@ -32,7 +31,6 @@ jobs:
 
           chmod +x bin/micromamba
 
-          echo "Micromamba version:"
           ./bin/micromamba --version
 
 
@@ -66,12 +64,6 @@ jobs:
           echo "fslmaths: OK"
           echo "flirt: OK"
           echo "fslstats: OK"
-
-          if [ -f "${GITHUB_WORKSPACE}/fsl/etc/fslversion" ]; then
-            echo ""
-            echo "FSL version:"
-            cat "${GITHUB_WORKSPACE}/fsl/etc/fslversion"
-          fi
 
 
       - name: Create compressed archive
@@ -130,20 +122,20 @@ jobs:
           echo "fslstats: OK"
 
           echo ""
-          echo "FSL version from extracted archive:"
-          cat relocated-test/fsl/etc/fslversion
-
-          echo ""
-          echo "Testing fslmaths:"
+          echo "Testing extracted fslmaths:"
           relocated-test/fsl/bin/fslmaths -h | head -20
 
           echo ""
-          echo "Testing flirt:"
+          echo "Testing extracted flirt:"
           relocated-test/fsl/bin/flirt -version
 
           echo ""
-          echo "Testing fslstats:"
+          echo "Testing extracted fslstats:"
           relocated-test/fsl/bin/fslstats -h | head -10
+
+          echo ""
+          echo "Checking extracted FSL directory:"
+          ls -lah relocated-test/fsl | head -30
 
           echo ""
           echo "======================================"
