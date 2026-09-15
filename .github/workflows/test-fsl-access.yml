@@ -3,27 +3,44 @@ name: Package FSL 6.0.7.23
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-22.04
-    timeout-minutes: 60
+    timeout-minutes: 90
 
     steps:
 
+      # ============================================================
+      # 1. Download official FSL environment
+      # ============================================================
+
       - name: Download FSL environment
         run: |
-          echo "Downloading FSL environment..."
+          echo "======================================"
+          echo "Downloading FSL 6.0.7.23 environment"
+          echo "======================================"
 
           curl -fL \
             "https://fsl.fmrib.ox.ac.uk/fsldownloads/fslconda/releases/fsl-6.0.7.23_linux-64.yml" \
             -o fsl-6.0.7.23_linux-64.yml
 
+          echo ""
+          echo "Environment file:"
           ls -lh fsl-6.0.7.23_linux-64.yml
 
 
+      # ============================================================
+      # 2. Install micromamba
+      # ============================================================
+
       - name: Install micromamba
         run: |
-          echo "Installing micromamba..."
+          echo "======================================"
+          echo "Installing micromamba"
+          echo "======================================"
 
           curl -Ls \
             "https://micro.mamba.pm/api/micromamba/linux-64/latest" \
@@ -31,8 +48,14 @@ jobs:
 
           chmod +x bin/micromamba
 
+          echo ""
+          echo "Micromamba version:"
           ./bin/micromamba --version
 
+
+      # ============================================================
+      # 3. Create FSL environment
+      # ============================================================
 
       - name: Create FSL environment
         env:
@@ -51,6 +74,10 @@ jobs:
           echo "FSL installation completed."
 
 
+      # ============================================================
+      # 4. Verify original FSL installation
+      # ============================================================
+
       - name: Verify FSL installation
         run: |
           echo "======================================"
@@ -65,6 +92,14 @@ jobs:
           echo "flirt: OK"
           echo "fslstats: OK"
 
+          echo ""
+          echo "FSL installation directory:"
+          du -sh "${GITHUB_WORKSPACE}/fsl"
+
+
+      # ============================================================
+      # 5. Create compressed FSL archive
+      # ============================================================
 
       - name: Create compressed archive
         run: |
@@ -82,20 +117,33 @@ jobs:
           echo "Archive created:"
           ls -lh fsl-6.0.7.23-linux-64.tar.zst
 
+          echo ""
+          echo "Archive size:"
+          du -h fsl-6.0.7.23-linux-64.tar.zst
 
-      - name: Calculate checksum
+
+      # ============================================================
+      # 6. Calculate SHA256 of complete archive
+      # ============================================================
+
+      - name: Calculate archive checksum
         run: |
           echo "======================================"
           echo "Calculating SHA256"
           echo "======================================"
 
-          sha256sum fsl-6.0.7.23-linux-64.tar.zst \
+          sha256sum \
+            fsl-6.0.7.23-linux-64.tar.zst \
             | tee fsl-6.0.7.23-linux-64.tar.zst.sha256
 
           echo ""
-          echo "Archive size:"
-          du -h fsl-6.0.7.23-linux-64.tar.zst
+          echo "Complete archive checksum:"
+          cat fsl-6.0.7.23-linux-64.tar.zst.sha256
 
+
+      # ============================================================
+      # 7. Test extraction of archive
+      # ============================================================
 
       - name: Test extracted archive
         run: |
@@ -134,33 +182,126 @@ jobs:
           relocated-test/fsl/bin/fslstats -h | head -10
 
           echo ""
-          echo "Checking extracted FSL directory:"
-          ls -lah relocated-test/fsl | head -30
-
-          echo ""
           echo "======================================"
           echo "RELOCATED ARCHIVE TEST PASSED"
           echo "======================================"
 
 
-      - name: Show disk usage
+      # ============================================================
+      # 8. Split archive into downloadable parts
+      # ============================================================
+
+      - name: Split archive into parts
         run: |
           echo "======================================"
-          echo "Disk usage"
+          echo "Splitting FSL archive"
+          echo "======================================"
+
+          mkdir -p fsl-parts
+
+          split \
+            -b 1500M \
+            -d \
+            -a 2 \
+            fsl-6.0.7.23-linux-64.tar.zst \
+            fsl-parts/fsl-6.0.7.23-linux-64.part-
+
+          echo ""
+          echo "Created parts:"
+          ls -lh fsl-parts/
+
+          echo ""
+          echo "Number of parts:"
+          find fsl-parts -type f | wc -l
+
+
+      # ============================================================
+      # 9. Calculate SHA256 for every part
+      # ============================================================
+
+      - name: Calculate part checksums
+        run: |
+          echo "======================================"
+          echo "Calculating SHA256 for archive parts"
+          echo "======================================"
+
+          cd fsl-parts
+
+          sha256sum \
+            fsl-6.0.7.23-linux-64.part-* \
+            | tee SHA256SUMS.txt
+
+          echo ""
+          echo "Part checksums:"
+          cat SHA256SUMS.txt
+
+
+      # ============================================================
+      # 10. Verify parts can reconstruct the original archive
+      # ============================================================
+
+      - name: Verify archive reconstruction
+        run: |
+          echo "======================================"
+          echo "Testing archive reconstruction"
+          echo "======================================"
+
+          cat \
+            fsl-parts/fsl-6.0.7.23-linux-64.part-* \
+            > reconstructed-fsl-6.0.7.23-linux-64.tar.zst
+
+          echo ""
+          echo "Comparing reconstructed archive with original..."
+
+          cmp \
+            fsl-6.0.7.23-linux-64.tar.zst \
+            reconstructed-fsl-6.0.7.23-linux-64.tar.zst
+
+          echo ""
+          echo "Reconstructed archive checksum:"
+
+          sha256sum \
+            reconstructed-fsl-6.0.7.23-linux-64.tar.zst
+
+          echo ""
+          echo "Original archive checksum:"
+
+          sha256sum \
+            fsl-6.0.7.23-linux-64.tar.zst
+
+          echo ""
+          echo "======================================"
+          echo "RECONSTRUCTION TEST PASSED"
+          echo "======================================"
+
+
+      # ============================================================
+      # 11. Show final files
+      # ============================================================
+
+      - name: Show final files
+        run: |
+          echo "======================================"
+          echo "FINAL PACKAGE INFORMATION"
           echo "======================================"
 
           echo ""
-          echo "FSL environment:"
-          du -sh "${GITHUB_WORKSPACE}/fsl"
+          echo "Complete archive:"
+          ls -lh fsl-6.0.7.23-linux-64.tar.zst
 
           echo ""
-          echo "Compressed archive:"
-          du -sh fsl-6.0.7.23-linux-64.tar.zst
+          echo "Archive SHA256:"
+          cat fsl-6.0.7.23-linux-64.tar.zst.sha256
 
           echo ""
-          echo "Extracted test copy:"
-          du -sh relocated-test/fsl
+          echo "Downloadable parts:"
+          ls -lh fsl-parts/
 
           echo ""
-          echo "Filesystem:"
-          df -h
+          echo "Part SHA256:"
+          cat fsl-parts/SHA256SUMS.txt
+
+          echo ""
+          echo "======================================"
+          echo "FSL PACKAGE READY"
+          echo "======================================"
