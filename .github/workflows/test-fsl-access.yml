@@ -1,4 +1,4 @@
-name: Test FSL Offline
+name: Package FSL 6.0.7.23
 
 on:
   workflow_dispatch:
@@ -6,18 +6,18 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    timeout-minutes: 40
+    timeout-minutes: 60
 
     steps:
 
       - name: Download FSL environment
         run: |
-          echo "Downloading FSL 6.0.7.23 environment..."
+          echo "Downloading FSL environment..."
+
           curl -fL \
             "https://fsl.fmrib.ox.ac.uk/fsldownloads/fslconda/releases/fsl-6.0.7.23_linux-64.yml" \
             -o fsl-6.0.7.23_linux-64.yml
 
-          echo "Downloaded environment file:"
           ls -lh fsl-6.0.7.23_linux-64.yml
 
       - name: Install micromamba
@@ -30,100 +30,73 @@ jobs:
 
           chmod +x bin/micromamba
 
-          echo "Micromamba version:"
           ./bin/micromamba --version
 
-      - name: Create FSL online
+      - name: Create FSL environment
         env:
           MAMBA_ROOT_PREFIX: ${{ github.workspace }}/mamba-root
         run: |
-          echo "Creating FSL 6.0.7.23 environment..."
+          echo "Creating FSL 6.0.7.23..."
 
           ./bin/micromamba create \
             --yes \
-            --prefix "${GITHUB_WORKSPACE}/fsl-staging" \
+            --prefix "${GITHUB_WORKSPACE}/fsl" \
             --file fsl-6.0.7.23_linux-64.yml
 
-          echo "Online FSL installation completed."
+          echo "FSL installation completed."
 
-      - name: Test offline installation
-        env:
-          MAMBA_ROOT_PREFIX: ${{ github.workspace }}/mamba-root
+      - name: Verify FSL
         run: |
-          echo "======================================"
-          echo "Testing offline recreation of FSL..."
-          echo "======================================"
+          echo "Checking FSL installation..."
 
-          ./bin/micromamba create \
-            --offline \
-            --yes \
-            --prefix "${GITHUB_WORKSPACE}/fsl-offline-test" \
-            --file fsl-6.0.7.23_linux-64.yml
-
-          echo "======================================"
-          echo "Offline installation completed."
-          echo "======================================"
-
-      - name: Verify offline FSL
-        run: |
-          echo "======================================"
-          echo "Checking FSL version..."
-          echo "======================================"
-
-          if [ -f "${GITHUB_WORKSPACE}/fsl-offline-test/etc/fslversion" ]; then
-            cat "${GITHUB_WORKSPACE}/fsl-offline-test/etc/fslversion"
-          else
-            echo "fslversion file not found"
-          fi
-
-          echo ""
-          echo "======================================"
-          echo "Checking FSL executables..."
-          echo "======================================"
-
-          test -x "${GITHUB_WORKSPACE}/fsl-offline-test/bin/fslmaths"
-          test -x "${GITHUB_WORKSPACE}/fsl-offline-test/bin/flirt"
-          test -x "${GITHUB_WORKSPACE}/fsl-offline-test/bin/fslstats"
+          test -x "${GITHUB_WORKSPACE}/fsl/bin/fslmaths"
+          test -x "${GITHUB_WORKSPACE}/fsl/bin/flirt"
+          test -x "${GITHUB_WORKSPACE}/fsl/bin/fslstats"
 
           echo "fslmaths: OK"
           echo "flirt: OK"
           echo "fslstats: OK"
 
-          echo ""
-          echo "======================================"
-          echo "Testing fslmaths help..."
-          echo "======================================"
+          if [ -f "${GITHUB_WORKSPACE}/fsl/etc/fslversion" ]; then
+            echo "FSL version:"
+            cat "${GITHUB_WORKSPACE}/fsl/etc/fslversion"
+          fi
 
-          "${GITHUB_WORKSPACE}/fsl-offline-test/bin/fslmaths" -h | head -20
-
-          echo ""
-          echo "======================================"
-          echo "OFFLINE FSL VERIFICATION PASSED"
-          echo "======================================"
-
-      - name: Show sizes
-        env:
-          MAMBA_ROOT_PREFIX: ${{ github.workspace }}/mamba-root
+      - name: Create compressed archive
         run: |
           echo "======================================"
-          echo "FSL staging size"
+          echo "Creating compressed FSL archive"
           echo "======================================"
-          du -sh "${GITHUB_WORKSPACE}/fsl-staging"
+
+          tar \
+            --zstd \
+            -cf fsl-6.0.7.23-linux-64.tar.zst \
+            -C "${GITHUB_WORKSPACE}" \
+            fsl
 
           echo ""
-          echo "======================================"
-          echo "Offline FSL size"
-          echo "======================================"
-          du -sh "${GITHUB_WORKSPACE}/fsl-offline-test"
+          echo "Archive created:"
+          ls -lh fsl-6.0.7.23-linux-64.tar.zst
+
+      - name: Calculate checksum
+        run: |
+          echo "Calculating SHA256..."
+
+          sha256sum fsl-6.0.7.23-linux-64.tar.zst \
+            | tee fsl-6.0.7.23-linux-64.tar.zst.sha256
 
           echo ""
+          echo "Archive size:"
+          du -h fsl-6.0.7.23-linux-64.tar.zst
+
+      - name: Show disk usage
+        run: |
           echo "======================================"
-          echo "Mamba cache size"
+          echo "Disk usage"
           echo "======================================"
-          du -sh "$MAMBA_ROOT_PREFIX"
+
+          du -sh "${GITHUB_WORKSPACE}/fsl"
+          du -sh fsl-6.0.7.23-linux-64.tar.zst
 
           echo ""
-          echo "======================================"
-          echo "Disk space"
-          echo "======================================"
           df -h
