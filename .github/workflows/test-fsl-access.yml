@@ -1,25 +1,64 @@
-name: Test FSL access
+name: Build FSL 6.0.7.23
 
 on:
   workflow_dispatch:
 
 jobs:
-  test:
+  build:
     runs-on: ubuntu-22.04
+    timeout-minutes: 40
 
     steps:
-      - name: Test FSL server
-        run: |
-          echo "Testing FSL server..."
-          curl -4 -I \
-            --connect-timeout 20 \
-            --max-time 30 \
-            "https://fsl.fmrib.ox.ac.uk/fsldownloads/fslconda/public/linux-64/repodata.json"
 
-      - name: Test conda-forge
+      - name: Download FSL environment
         run: |
-          echo "Testing conda-forge..."
-          curl -4 -I \
-            --connect-timeout 20 \
-            --max-time 30 \
-            "https://conda.anaconda.org/conda-forge/linux-64/repodata.json"
+          echo "Downloading FSL 6.0.7.23 environment..."
+          curl -fL \
+            "https://fsl.fmrib.ox.ac.uk/fsldownloads/fslconda/releases/fsl-6.0.7.23_linux-64.yml" \
+            -o fsl-6.0.7.23_linux-64.yml
+
+          echo "Downloaded file:"
+          ls -lh fsl-6.0.7.23_linux-64.yml
+
+      - name: Install micromamba
+        run: |
+          echo "Installing micromamba..."
+
+          curl -Ls \
+            "https://micro.mamba.pm/api/micromamba/linux-64/latest" \
+            | tar -xvj bin/micromamba
+
+          chmod +x bin/micromamba
+
+          ./bin/micromamba --version
+
+      - name: Create FSL environment
+        env:
+          MAMBA_ROOT_PREFIX: ${{ github.workspace }}/mamba-root
+        run: |
+          echo "Creating FSL 6.0.7.23 environment..."
+
+          ./bin/micromamba create \
+            --yes \
+            --prefix "${GITHUB_WORKSPACE}/fsl-staging" \
+            --file fsl-6.0.7.23_linux-64.yml
+
+      - name: Verify FSL
+        run: |
+          echo "Checking installation..."
+
+          "${GITHUB_WORKSPACE}/fsl-staging/bin/fslmaths" --version || true
+          "${GITHUB_WORKSPACE}/fsl-staging/bin/flirt" -version || true
+
+      - name: Show disk usage
+        env:
+          MAMBA_ROOT_PREFIX: ${{ github.workspace }}/mamba-root
+        run: |
+          echo "=== FSL environment ==="
+          du -sh "${GITHUB_WORKSPACE}/fsl-staging"
+
+          echo "=== Mamba package cache ==="
+          du -sh "$MAMBA_ROOT_PREFIX"
+
+          echo "=== Disk space ==="
+          df -h
