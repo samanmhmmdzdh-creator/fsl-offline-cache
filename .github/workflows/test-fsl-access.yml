@@ -1,0 +1,25 @@
+name: Test FSL access
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Test FSL server
+        run: |
+          echo "Testing FSL server..."
+          curl -4 -I \
+            --connect-timeout 20 \
+            --max-time 30 \
+            "https://fsl.fmrib.ox.ac.uk/fsldownloads/fslconda/public/linux-64/repodata.json"
+
+      - name: Test conda-forge
+        run: |
+          echo "Testing conda-forge..."
+          curl -4 -I \
+            --connect-timeout 20 \
+            --max-time 30 \
+            "https://conda.anaconda.org/conda-forge/linux-64/repodata.json"
